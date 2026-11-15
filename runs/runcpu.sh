@@ -10,6 +10,8 @@
 # Think of this run as educational/fun demo, not something you should expect to work well.
 # You may also want to run this script manually and one by one, copy pasting commands into your terminal.
 
+set -e # stop at the first failing stage
+
 # all the setup stuff
 export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
 mkdir -p $NANOCHAT_BASE_DIR
@@ -34,7 +36,7 @@ python -m scripts.base_train \
     --head-dim=64 \
     --window-pattern=L \
     --max-seq-len=512 \
-    --device-batch-size=32 \
+    --device-batch-size=16 \
     --total-batch-size=16384 \
     --eval-every=100 \
     --eval-tokens=524288 \
@@ -42,13 +44,14 @@ python -m scripts.base_train \
     --sample-every=100 \
     --num-iterations=5000 \
     --run=$WANDB_RUN
-python -m scripts.base_eval --device-batch-size=1 --split-tokens=16384 --max-per-task=16
+python -m scripts.base_eval --device-batch-size=1 --split-tokens=16384 --max-per-task=12
 
 # SFT (~10 minutes on my MacBook Pro M3 Max)
 python -m scripts.chat_sft \
     --eval-every=200 \
     --eval-tokens=524288 \
     --num-iterations=1500 \
+    --chatcore-max-cat=200 \
     --run=$WANDB_RUN
 
 # Chat with the model over CLI

@@ -113,6 +113,8 @@ def evaluate_core(model, tokenizer, device, max_per_task=-1):
         centered_results[label] = centered_result
         elapsed = time.time() - start_time
         print0(f"accuracy: {accuracy:.4f} | centered: {centered_result:.4f} | time: {elapsed:.2f}s")
+        if device.type == "mps":
+            torch.mps.empty_cache() # each task has different shapes, don't let cached buffers pile up
 
     core_metric = sum(centered_results.values()) / len(centered_results)
     out = {

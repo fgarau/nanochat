@@ -105,13 +105,17 @@ def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems
         conversations = [task_object[ii] for ii in range(i0, i1)]
         prompt_ids = [tokenizer.render_for_completion(conversation) for conversation in conversations] # TODO: remake the way this works
         max_length = max(len(ids) for ids in prompt_ids)
+        if device.type == "mps":
+            max_length = -(-max_length // 64) * 64 # fewer distinct shapes => fewer cached MPS buffers
         answer_time_positions = [len(ids) - 1 for ids in prompt_ids] # where the last token is (and the predicted answer)
         padded_prompt_ids = [ids + [bos] * (max_length - len(ids)) for ids in prompt_ids]
         prompt_ids = torch.tensor(padded_prompt_ids, dtype=torch.long, device=device)
 
         # Get the logits for the whole batch of conversations in parallel (efficiency win here)
+        # On MPS, forward in smaller chunks to keep the (B, T, V) logits tensor small
+        chunk_size = 4 if device.type == "mps" else prompt_ids.size(0)
         with torch.no_grad():
-            logits = model(prompt_ids) # (B, T, V)
+            logits = torch.cat([model(prompt_ids[j:j+chunk_size]) for j in range(0, prompt_ids.size(0), chunk_size)]) # (B, T, V)
 
         # Focus on the available answer on just the letters corresponding to choices
         # Note that this helps the evaluation a lot because it specifically narrows the focus to only the available letters

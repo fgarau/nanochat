@@ -101,9 +101,13 @@ def find_common_length(token_sequences, direction='left'):
     return min_len
 
 
-def stack_sequences(tokens, pad_token_id):
-    """Stack up a list of token sequences, pad to longest on the right"""
+def stack_sequences(tokens, pad_token_id, pad_to_multiple=1, max_len=None):
+    """Stack up a list of token sequences, pad to longest on the right.
+    Optionally round the length up to a multiple (capped at max_len) so there are fewer distinct shapes."""
     bsz, seq_len = len(tokens), max(len(x) for x in tokens)
+    seq_len = -(-seq_len // pad_to_multiple) * pad_to_multiple
+    if max_len is not None:
+        seq_len = max(min(seq_len, max_len), max(len(x) for x in tokens))
     input_ids = torch.full((bsz, seq_len), pad_token_id, dtype=torch.long)
     for i, x in enumerate(tokens):
         input_ids[i, :len(x)] = torch.tensor(x, dtype=torch.long)
@@ -213,12 +217,18 @@ def evaluate_example(idx, model, tokenizer, data, device, task_meta):
         tokens, start_idxs, end_idxs = new_tokens, new_start_idxs, new_end_idxs
 
     # Stack up all the sequences into a batch
+    # On MPS, pad to a multiple of 64 so we don't build up cached buffers for every distinct length
     pad_token_id = tokenizer.get_bos_token_id() # use BOS as pad token is ok
-    input_ids = stack_sequences(tokens, pad_token_id)
+    pad_to_multiple = 64 if device.type == "mps" else 1
+    input_ids = stack_sequences(tokens, pad_token_id, pad_to_multiple, getattr(model, 'max_seq_len', None))
     input_ids = input_ids.to(device)
 
     # Forward the model, get the autoregressive loss and argmax prediction at each token
-    losses, predictions = forward_model(model, input_ids)
+    # On MPS, forward the rows in chunks to keep the (B, T, V) logits small (rows are independent)
+    chunk_size = 4 if device.type == "mps" else input_ids.size(0)
+    chunks = [forward_model(model, input_ids[i:i+chunk_size]) for i in range(0, input_ids.size(0), chunk_size)]
+    losses = torch.cat([c[0] for c in chunks])
+    predictions = torch.cat([c[1] for c in chunks])
 
     # See if the losses/predictions come out correctly
     if task_type == 'language_modeling':

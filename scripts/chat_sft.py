@@ -359,6 +359,8 @@ while True:
     chatcore_results = {}
     if args.chatcore_every > 0 and (last_step or (step > 0 and step % args.chatcore_every == 0)):
         model.eval()
+        if device_type == "mps":
+            torch.mps.empty_cache() # release training's cached buffers before the eval
         engine = Engine(orig_model, tokenizer)
         all_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval']
         categorical_tasks = {'ARC-Easy', 'ARC-Challenge', 'MMLU'}
@@ -374,6 +376,8 @@ while True:
                                 batch_size=args.device_batch_size, max_problems=max_problems)
             task_results[task_name] = acc
             print0(f"  {task_name}: {100*acc:.2f}%")
+            if device_type == "mps":
+                torch.mps.empty_cache()
         # Compute ChatCORE metrics (mean centered accuracy, ranges from 0=random to 1=perfect)
         def centered_mean(tasks):
             return sum((task_results[t] - baseline_accuracies[t]) / (1.0 - baseline_accuracies[t]) for t in tasks) / len(tasks)
