@@ -3,7 +3,7 @@ name = "nanochat"
 version = "0.1.0"
 description = "the minimal full-stack ChatGPT clone"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "filelock>=3.19.0",
     "kernels>=0.11.7",
@@ -15,7 +15,7 @@ dependencies = [
     # Original: torch==2.9.1. Intel macOS (darwin/x86_64) has no 2.9.x wheels —
     # last supported is 2.2.2. Markers keep upstream default everywhere else
     # (Linux, Windows, Apple Silicon).
-    "torch==2.9.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch==2.15.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "wandb>=0.21.3",
 ]
@@ -38,13 +38,16 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-# Original (non-macOS): torch from pytorch-cpu (cpu) / pytorch-cu128 (gpu).
+# Original (non-macOS): torch from pytorch-cpu (cpu) / pytorch-cu132 (gpu).
 # Detect OS: macOS uses PyPI (MPS / Intel wheels); CUDA index is Linux-only.
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
-    { index = "pytorch-cu128", extra = "gpu", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu132", extra = "gpu", marker = "sys_platform == 'linux'" },
 ]
+# Prebuilt from ../rustbpe (playgroup @ 8d15bdd, PyO3 0.30.1) since PyPI 0.1.0 caps at 3.14.
+# Other platforms/Pythons fall back to PyPI.
+rustbpe = { path = "wheels/rustbpe-0.1.0-cp315-cp315-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64' and python_version == '3.15'" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -52,18 +55,18 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
 explicit = true
 
 [project.optional-dependencies]
 cpu = [
     "setuptools>=65.0.0",
-    "torch==2.9.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch==2.15.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
 gpu = [
-    "torch==2.9.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch==2.15.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
 
